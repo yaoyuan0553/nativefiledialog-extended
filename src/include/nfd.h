@@ -15,6 +15,7 @@ extern "C" {
 #endif  // __cplusplus
 
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef _WIN32
 /* denotes UTF-16 char */
@@ -82,6 +83,18 @@ nfdresult_t NFD_OpenDialogN(nfdnchar_t** outPath,
                             const nfdnfilteritem_t* filterList,
                             nfdfiltersize_t filterCount,
                             const nfdnchar_t* defaultPath);
+
+typedef struct {
+    char** outPath;
+    void* parentWindow;
+    const char* winFilter;
+    unsigned long filterIndex;
+    const char* defaultPath;
+    const char* title;
+    const char* defExt;
+} NfdOpenDialogParams;
+
+nfdresult_t NFD_OpenDialogWin(NfdOpenDialogParams* params);
 
 /* multiple file open dialog */
 /* It is the caller's responsibility to free `outPaths` via NFD_PathSet_Free() if this function

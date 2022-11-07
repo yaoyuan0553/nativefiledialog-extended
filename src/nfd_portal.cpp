@@ -37,6 +37,14 @@ T* NFDi_Malloc(size_t bytes) {
     return static_cast<T*>(ptr);
 }
 
+template <typename T = void>
+T* NFDi_Realloc(T* ptr, size_t bytes) {
+    void* newPtr = realloc(ptr, bytes);
+    assert(newPtr);  // Linux malloc never fails
+
+    return static_cast<T*>(newPtr);
+}
+
 template <typename T>
 void NFDi_Free(T* ptr) {
     assert(ptr);
@@ -113,19 +121,32 @@ constexpr const char* STR_ALL_FILES = "All files";
 constexpr const char* STR_ASTERISK = "*";
 
 template <bool Multiple, bool Directory>
-void AppendOpenFileQueryTitle(DBusMessageIter&);
-template <>
-void AppendOpenFileQueryTitle<false, false>(DBusMessageIter& iter) {
-    dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &STR_OPEN_FILE);
+void AppendOpenFileQueryTitle(DBusMessageIter& iter, const char* title = nullptr)
+{
+    if (title)
+        dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &title);
+    else {
+        if constexpr (!Multiple && !Directory)
+            dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &STR_OPEN_FILE);
+        else if constexpr (Multiple && !Directory)
+            dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &STR_OPEN_FILES);
+        else if constexpr (!Multiple)
+            dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &STR_SELECT_FOLDER);
+    }
 }
-template <>
-void AppendOpenFileQueryTitle<true, false>(DBusMessageIter& iter) {
-    dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &STR_OPEN_FILES);
-}
-template <>
-void AppendOpenFileQueryTitle<false, true>(DBusMessageIter& iter) {
-    dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &STR_SELECT_FOLDER);
-}
+
+//template <>
+//void AppendOpenFileQueryTitle<false, false>(DBusMessageIter& iter) {
+//    dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &STR_OPEN_FILE);
+//}
+//template <>
+//void AppendOpenFileQueryTitle<true, false>(DBusMessageIter& iter) {
+//    dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &STR_OPEN_FILES);
+//}
+//template <>
+//void AppendOpenFileQueryTitle<false, true>(DBusMessageIter& iter) {
+//    dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &STR_SELECT_FOLDER);
+//}
 
 void AppendSaveFileQueryTitle(DBusMessageIter& iter) {
     dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &STR_SAVE_FILE);
@@ -152,7 +173,7 @@ void AppendOpenFileQueryDictEntryMultiple<true>(DBusMessageIter& sub_iter) {
     dbus_message_iter_append_basic(&sub_sub_iter, DBUS_TYPE_STRING, &STR_MULTIPLE);
     dbus_message_iter_open_container(&sub_sub_iter, DBUS_TYPE_VARIANT, "b", &variant_iter);
     {
-        int b = true;
+        u_int32_t b = true;
         dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN, &b);
     }
     dbus_message_iter_close_container(&sub_sub_iter, &variant_iter);
@@ -246,6 +267,71 @@ void AppendSingleFilter(DBusMessageIter& base_iter, const nfdnfilteritem_t& filt
     dbus_message_iter_close_container(&base_iter, &filter_list_struct_iter);
 }
 
+void AppendSingleFilter(DBusMessageIter& base_iter, const char* name, const char* pattern) {
+    DBusMessageIter filter_list_struct_iter;
+    DBusMessageIter filter_sublist_iter;
+    DBusMessageIter filter_sublist_struct_iter;
+    dbus_message_iter_open_container(
+        &base_iter, DBUS_TYPE_STRUCT, nullptr, &filter_list_struct_iter);
+    // count number of file extensions
+    size_t sep = 1;
+    for (const char* p = pattern; *p; ++p) {
+        if (*p == ';') {
+            ++sep;
+        }
+    }
+    {
+        const size_t name_len = strlen(name);
+        const size_t pattern_len = strlen(pattern);
+        char* buf = static_cast<char*>(alloca(sep + name_len + 2 + pattern_len + 1));
+        char* buf_end = buf;
+        buf_end = copy(name, name + name_len, buf_end);
+        *buf_end++ = ' ';
+        *buf_end++ = '(';
+        const char* pattern_ptr = pattern;
+        do {
+            *buf_end++ = *pattern_ptr;
+            if (*pattern_ptr == ';') *buf_end++ = ' ';
+            ++pattern_ptr;
+        } while (*pattern_ptr != '\0');
+        *buf_end++ = ')';
+        *buf_end = '\0';
+        dbus_message_iter_append_basic(&filter_list_struct_iter, DBUS_TYPE_STRING, &buf);
+    }
+    {
+        dbus_message_iter_open_container(
+            &filter_list_struct_iter, DBUS_TYPE_ARRAY, "(us)", &filter_sublist_iter);
+        const char* pattern_begin = pattern;
+        const char* pattern_end = pattern_begin;
+        while (true) {
+            dbus_message_iter_open_container(
+                &filter_sublist_iter, DBUS_TYPE_STRUCT, nullptr, &filter_sublist_struct_iter);
+            {
+                const unsigned zero = 0;
+                dbus_message_iter_append_basic(
+                    &filter_sublist_struct_iter, DBUS_TYPE_UINT32, &zero);
+            }
+            // TODO: ignore case
+            do {
+                ++pattern_end;
+            } while (*pattern_end != ';' && *pattern_end != '\0');
+            char* buf = static_cast<char*>(alloca((pattern_end - pattern_begin) + 1));
+            char* buf_end = buf;
+            buf_end = copy(pattern_begin, pattern_end, buf_end);
+            *buf_end = '\0';
+            dbus_message_iter_append_basic(&filter_sublist_struct_iter, DBUS_TYPE_STRING, &buf);
+            dbus_message_iter_close_container(&filter_sublist_iter, &filter_sublist_struct_iter);
+            if (*pattern_end == '\0') {
+                break;
+            }
+            pattern_begin = pattern_end + 1;
+            pattern_end = pattern_begin;
+        }
+    }
+    dbus_message_iter_close_container(&filter_list_struct_iter, &filter_sublist_iter);
+    dbus_message_iter_close_container(&base_iter, &filter_list_struct_iter);
+}
+
 bool AppendSingleFilterCheckExtn(DBusMessageIter& base_iter,
                                  const nfdnfilteritem_t& filter,
                                  const nfdnchar_t* match_extn) {
@@ -327,13 +413,16 @@ bool AppendSingleFilterCheckExtn(DBusMessageIter& base_iter,
     return extn_matched;
 }
 
-void AppendWildcardFilter(DBusMessageIter& base_iter) {
+void AppendWildcardFilter(DBusMessageIter& base_iter, const char* name = nullptr) {
     DBusMessageIter filter_list_struct_iter;
     DBusMessageIter filter_sublist_iter;
     DBusMessageIter filter_sublist_struct_iter;
     dbus_message_iter_open_container(
         &base_iter, DBUS_TYPE_STRUCT, nullptr, &filter_list_struct_iter);
-    dbus_message_iter_append_basic(&filter_list_struct_iter, DBUS_TYPE_STRING, &STR_ALL_FILES);
+    if (name)
+        dbus_message_iter_append_basic(&filter_list_struct_iter, DBUS_TYPE_STRING, &name);
+    else
+        dbus_message_iter_append_basic(&filter_list_struct_iter, DBUS_TYPE_STRING, &STR_ALL_FILES);
     dbus_message_iter_open_container(
         &filter_list_struct_iter, DBUS_TYPE_ARRAY, "(us)", &filter_sublist_iter);
     dbus_message_iter_open_container(
@@ -346,6 +435,63 @@ void AppendWildcardFilter(DBusMessageIter& base_iter) {
     dbus_message_iter_close_container(&filter_sublist_iter, &filter_sublist_struct_iter);
     dbus_message_iter_close_container(&filter_list_struct_iter, &filter_sublist_iter);
     dbus_message_iter_close_container(&base_iter, &filter_list_struct_iter);
+}
+
+void AppendOpenFileQueryDictEntryFilters(DBusMessageIter& sub_iter,
+                                         const char* winFilter,
+                                         unsigned long filterIndex)
+{
+    if (winFilter && *winFilter != '\0') {
+        DBusMessageIter sub_sub_iter;
+        DBusMessageIter variant_iter;
+        DBusMessageIter filter_list_iter;
+
+        // filters
+        dbus_message_iter_open_container(&sub_iter, DBUS_TYPE_DICT_ENTRY, nullptr, &sub_sub_iter);
+        dbus_message_iter_append_basic(&sub_sub_iter, DBUS_TYPE_STRING, &STR_FILTERS);
+        dbus_message_iter_open_container(
+            &sub_sub_iter, DBUS_TYPE_VARIANT, "a(sa(us))", &variant_iter);
+        dbus_message_iter_open_container(
+            &variant_iter, DBUS_TYPE_ARRAY, "(sa(us))", &filter_list_iter);
+
+        const char* curFilter = winFilter;
+        const char* ptr = winFilter;
+        // count
+        for (unsigned long i = 1; *ptr; ++i)
+        {
+            if (i == filterIndex)
+                curFilter = ptr;
+            // name
+            const char* name = ptr;
+            ptr += strlen(ptr) + 1;
+            // filter
+            // malformed filter behaves similar to *.* (observed from experiments)
+            if (!*ptr) {
+                AppendWildcardFilter(filter_list_iter, name);
+                break;
+            }
+            AppendSingleFilter(filter_list_iter, name, ptr);
+            ptr += strlen(ptr) + 1;
+        }
+
+//        AppendWildcardFilter(filter_list_iter);
+        dbus_message_iter_close_container(&variant_iter, &filter_list_iter);
+        dbus_message_iter_close_container(&sub_sub_iter, &variant_iter);
+        dbus_message_iter_close_container(&sub_iter, &sub_sub_iter);
+
+        // current_filter
+        dbus_message_iter_open_container(&sub_iter, DBUS_TYPE_DICT_ENTRY, nullptr, &sub_sub_iter);
+        dbus_message_iter_append_basic(&sub_sub_iter, DBUS_TYPE_STRING, &STR_CURRENT_FILTER);
+        dbus_message_iter_open_container(
+            &sub_sub_iter, DBUS_TYPE_VARIANT, "(sa(us))", &variant_iter);
+        const char* curFilterPattern = curFilter + strlen(curFilter) + 1;
+        if (!*curFilterPattern)
+            AppendWildcardFilter(variant_iter, curFilter);
+        else
+            AppendSingleFilter(variant_iter, curFilter, curFilterPattern);
+        dbus_message_iter_close_container(&sub_sub_iter, &variant_iter);
+        dbus_message_iter_close_container(&sub_iter, &sub_sub_iter);
+    }
 }
 
 template <bool FilterEnabled>
@@ -542,6 +688,32 @@ void AppendOpenFileQueryParams(DBusMessage* query,
     AppendOpenFileQueryDictEntryMultiple<Multiple>(sub_iter);
     AppendOpenFileQueryDictEntryDirectory<Directory>(sub_iter);
     AppendOpenFileQueryDictEntryFilters<!Directory>(sub_iter, filterList, filterCount);
+    dbus_message_iter_close_container(&iter, &sub_iter);
+}
+
+// Append OpenFile() portal params to the given query.
+template <bool Multiple, bool Directory>
+void AppendOpenFileQueryParams(DBusMessage* query,
+                               const char* handle_token,
+                               NfdOpenDialogParams* params)
+{
+    DBusMessageIter iter;
+    dbus_message_iter_init_append(query, &iter);
+
+//    if (params->parentWindow)
+    dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &STR_EMPTY);
+
+    AppendOpenFileQueryTitle<Multiple, Directory>(iter, params->title);
+
+    DBusMessageIter sub_iter;
+    dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, "{sv}", &sub_iter);
+    AppendOpenFileQueryDictEntryHandleToken(sub_iter, handle_token);
+    if constexpr (Multiple)
+        AppendOpenFileQueryDictEntryMultiple<true>(sub_iter);
+    if constexpr (Directory)
+        AppendOpenFileQueryDictEntryDirectory<true>(sub_iter);
+    else
+        AppendOpenFileQueryDictEntryFilters(sub_iter, params->winFilter, params->filterIndex);
     dbus_message_iter_close_container(&iter, &sub_iter);
 }
 
@@ -1026,6 +1198,34 @@ nfdresult_t AllocAndCopyFilePath(const char* fileUri, char*& outPath) {
     return NFD_OKAY;
 }
 
+nfdresult_t CopyFilePath(const char* fileUri, char*& outPathList, char*& curOutPath, int& outPathSize) {
+    const char* prefix_begin = FILE_URI_PREFIX;
+    const char* const prefix_end = FILE_URI_PREFIX + FILE_URI_PREFIX_LEN;
+    for (; prefix_begin != prefix_end; ++prefix_begin, ++fileUri) {
+        if (*prefix_begin != *fileUri) {
+            NFDi_SetError("D-Bus freedesktop portal returned a URI that is not a file URI.");
+            return NFD_ERROR;
+        }
+    }
+    size_t decoded_len;
+    const char* file_uri_end;
+    if (!TryUriDecodeLen(fileUri, decoded_len, file_uri_end)) {
+        NFDi_SetError("D-Bus freedesktop portal returned a malformed URI.");
+        return NFD_ERROR;
+    }
+    // expand by 2 times if smaller
+    if (outPathSize - (curOutPath - outPathList) < decoded_len + 1) {
+        ptrdiff_t curIdx = curOutPath - outPathList;
+        outPathSize <<= 1;
+        outPathList = NFDi_Realloc<char>(outPathList, outPathSize);
+        curOutPath = outPathList + curIdx;
+    }
+    char* const out_end = UriDecodeUnchecked(fileUri, file_uri_end, curOutPath);
+    *out_end = '\0';
+    curOutPath = out_end;
+    return NFD_OKAY;
+}
+
 #ifdef NFD_APPEND_EXTENSION
 bool TryGetValidExtension(const char* extn,
                           const char*& trimmed_extn,
@@ -1123,6 +1323,84 @@ nfdresult_t NFD_DBus_OpenFile(DBusMessage*& outMsg,
     DBusMessage_Guard query_guard(query);
     AppendOpenFileQueryParams<Multiple, Directory>(
         query, handle_token_ptr, filterList, filterCount);
+
+    DBusMessage* reply =
+        dbus_connection_send_with_reply_and_block(dbus_conn, query, DBUS_TIMEOUT_INFINITE, &err);
+    if (!reply) {
+        dbus_error_free(&dbus_err);
+        dbus_move_error(&err, &dbus_err);
+        NFDi_SetError(dbus_err.message);
+        return NFD_ERROR;
+    }
+    DBusMessage_Guard reply_guard(reply);
+
+    // Check the reply and update our signal subscription if necessary
+    {
+        DBusMessageIter iter;
+        if (!dbus_message_iter_init(reply, &iter)) {
+            NFDi_SetError("D-Bus reply is missing an argument.");
+            return NFD_ERROR;
+        }
+        if (dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_OBJECT_PATH) {
+            NFDi_SetError("D-Bus reply is not an object path.");
+            return NFD_ERROR;
+        }
+
+        const char* path;
+        dbus_message_iter_get_basic(&iter, &path);
+        if (strcmp(path, handle_obj_path) != 0) {
+            // needs to change our signal subscription
+            signal_sub.Subscribe(path);
+        }
+    }
+
+    // Wait and read the response
+    // const char* file = nullptr;
+    do {
+        while (true) {
+            DBusMessage* msg = dbus_connection_pop_message(dbus_conn);
+            if (!msg) break;
+
+            if (dbus_message_is_signal(msg, "org.freedesktop.portal.Request", "Response")) {
+                // this is the response we're looking for
+                outMsg = msg;
+                return NFD_OKAY;
+            }
+
+            dbus_message_unref(msg);
+        }
+    } while (dbus_connection_read_write(dbus_conn, -1));
+
+    NFDi_SetError("D-Bus freedesktop portal did not give us a reply.");
+    return NFD_ERROR;
+}
+
+template <bool Multiple, bool Directory>
+nfdresult_t NFD_DBus_OpenFileWin(DBusMessage*& outMsg,
+                                 NfdOpenDialogParams* params) {
+    const char* handle_token_ptr;
+    char* handle_obj_path = MakeUniqueObjectPath(&handle_token_ptr);
+    Free_Guard<char> handle_obj_path_guard(handle_obj_path);
+
+    DBusError err;  // need a separate error object because we don't want to mess with the old one
+    // if it's stil set
+    dbus_error_init(&err);
+
+    // Subscribe to the signal using the handle_obj_path
+    DBusSignalSubscriptionHandler signal_sub;
+    nfdresult_t res = signal_sub.Subscribe(handle_obj_path);
+    if (res != NFD_OKAY) return res;
+
+    // TODO: use XOpenDisplay()/XGetInputFocus() to find xid of window... but what should one do on
+    // Wayland?
+
+    DBusMessage* query = dbus_message_new_method_call("org.freedesktop.portal.Desktop",
+                                                      "/org/freedesktop/portal/desktop",
+                                                      "org.freedesktop.portal.FileChooser",
+                                                      "OpenFile");
+    DBusMessage_Guard query_guard(query);
+    AppendOpenFileQueryParams<Multiple, Directory>(
+        query, handle_token_ptr, params);
 
     DBusMessage* reply =
         dbus_connection_send_with_reply_and_block(dbus_conn, query, DBUS_TIMEOUT_INFINITE, &err);
@@ -1326,6 +1604,69 @@ nfdresult_t NFD_OpenDialogN(nfdnchar_t** outPath,
     return AllocAndCopyFilePath(uri, *outPath);
 }
 
+nfdresult_t NFD_OpenDialogWin(NfdOpenDialogParams* params)
+{
+    (void)params->defaultPath;  // Default path not supported for portal backend
+
+    DBusMessage* msg;
+    {
+        const nfdresult_t res = NFD_DBus_OpenFileWin<false, false>(msg, params);
+        if (res != NFD_OKAY) {
+            return res;
+        }
+    }
+    DBusMessage_Guard msg_guard(msg);
+
+    const char* uri;
+    {
+        const nfdresult_t res = ReadResponseUrisSingle(msg, uri);
+        if (res != NFD_OKAY) {
+            return res;
+        }
+    }
+
+    return AllocAndCopyFilePath(uri, *params->outPath);
+}
+
+nfdresult_t NFD_OpenDialogMultipleWin(NfdOpenDialogParams* params)
+{
+    (void)params->defaultPath;  // Default path not supported for portal backend
+
+    DBusMessage* msg;
+    {
+        const nfdresult_t res = NFD_DBus_OpenFileWin<true, false>(msg, params);
+        if (res != NFD_OKAY) {
+            return res;
+        }
+    }
+
+    DBusMessageIter uri_iter;
+    const nfdresult_t res = ReadResponseUris(msg, uri_iter);
+    if (res != NFD_OKAY) {
+        dbus_message_unref(msg);
+        return res;
+    }
+
+    nfdpathsetsize_t numPaths;
+    NFD_PathSet_GetCount(msg, &numPaths);
+
+    constexpr int avgPathLen = 128;
+    *params->outPath = NFDi_Malloc<char>(avgPathLen * numPaths);
+    char* curPath = *params->outPath;
+
+    for (unsigned int i = 0; i < numPaths; ++i) {
+        char* path;
+        NFD_PathSet_GetPathN(msg, i, &path);
+        printf("Path %i: %s\n", (int)i, path);
+
+        // remember to free the pathset path with NFD_PathSet_FreePath (not NFD_FreePath!)
+        NFD_PathSet_FreePathN(path);
+    }
+
+    *outPaths = msg;
+    return NFD_OKAY;
+}
+
 nfdresult_t NFD_OpenDialogMultipleN(const nfdpathset_t** outPaths,
                                     const nfdnfilteritem_t* filterList,
                                     nfdfiltersize_t filterCount,
@@ -1441,6 +1782,32 @@ nfdresult_t NFD_PathSet_GetPathN(const nfdpathset_t* pathSet,
     const char* uri;
     dbus_message_iter_get_basic(&uri_iter, &uri);
     return AllocAndCopyFilePath(uri, *outPath);
+}
+
+nfdresult_t NFD_PathSet_GetPathWin(const nfdpathset_t* pathSet,
+                                   nfdpathsetsize_t index,
+                                   char*& outPathList,
+                                   char*& curOutPath,
+                                   int& outPathSize)
+{
+    assert(pathSet);
+    DBusMessage* msg = const_cast<DBusMessage*>(static_cast<const DBusMessage*>(pathSet));
+    DBusMessageIter uri_iter;
+    ReadResponseUrisUnchecked(msg, uri_iter);
+    while (index > 0) {
+        --index;
+        if (!dbus_message_iter_next(&uri_iter)) {
+            NFDi_SetError("Index out of bounds.");
+            return NFD_ERROR;
+        }
+    }
+    if (dbus_message_iter_get_arg_type(&uri_iter) != DBUS_TYPE_STRING) {
+        NFDi_SetError("D-Bus response signal URI sub iter is not a string.");
+        return NFD_ERROR;
+    }
+    const char* uri;
+    dbus_message_iter_get_basic(&uri_iter, &uri);
+    return CopyFilePath(uri, outPathList, curOutPath, outPathSize);
 }
 
 void NFD_PathSet_FreePathN(const nfdnchar_t* filePath) {

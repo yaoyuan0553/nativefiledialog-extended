@@ -1,5 +1,6 @@
 
 set(TEST_LIST
+  test_opendialog_win.c
   test_opendialog.c
   test_opendialog_cpp.cpp
   test_opendialogmultiple.c

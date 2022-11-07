@@ -46,8 +46,20 @@ if(NOT DEFINED CMAKE_CXX_STANDARD)
   endif()
 endif()
 
+if(nfd_COMPILER STREQUAL COMPILER_GNU)
+    if (NFD_TARGET_ARCHITECTURE)
+        if (${NFD_TARGET_ARCHITECTURE} STREQUAL "x86")
+            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32")
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m32")
+        else()
+            message(WARNING "unknown NFD_TARGET_ARCHITECTURE option '${NFD_TARGET_ARCHITECTURE}'")
+        endif()
+    endif()
+endif()
+
 add_subdirectory(src)
 
 if(${NFD_BUILD_TESTS})
   add_subdirectory(test)
 endif()
+

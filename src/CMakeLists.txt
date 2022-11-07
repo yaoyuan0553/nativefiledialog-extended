@@ -106,7 +106,7 @@ if(nfd_COMPILER STREQUAL COMPILER_CLANGCL)
 endif()
 
 if(nfd_COMPILER STREQUAL COMPILER_GNU)
-  target_compile_options(${TARGET_NAME} PRIVATE -nostdlib -fno-exceptions -fno-rtti)
+  target_compile_options(${TARGET_NAME} PRIVATE -nostdlib -fno-exceptions -fno-rtti -gdwarf-4)
 endif()
 
 set_target_properties(${TARGET_NAME} PROPERTIES
