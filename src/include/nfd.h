@@ -86,6 +86,7 @@ nfdresult_t NFD_OpenDialogN(nfdnchar_t** outPath,
 
 typedef struct {
     char** outPath;
+    size_t outPathSize;
     void* parentWindow;
     const char* winFilter;
     unsigned long filterIndex;
@@ -95,6 +96,10 @@ typedef struct {
 } NfdOpenDialogParams;
 
 nfdresult_t NFD_OpenDialogWin(NfdOpenDialogParams* params);
+
+nfdresult_t NFD_OpenDialogMultipleWin(NfdOpenDialogParams* params);
+
+nfdresult_t NFD_SaveDialogWin(NfdOpenDialogParams* params);
 
 /* multiple file open dialog */
 /* It is the caller's responsibility to free `outPaths` via NFD_PathSet_Free() if this function

@@ -1,10 +1,12 @@
 //
-// Created by yuan on 22-11-7.
+// Created by yuan on 22-11-8.
 //
 #include <nfd.h>
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <wchar.h>
 
 /* this test should compile on all supported platforms */
 
@@ -24,13 +26,19 @@ int main(void) {
     params.title = "this is a custom title";
 
     // show the dialog
-    nfdresult_t result = NFD_OpenDialogWin(&params);
+    nfdresult_t result = NFD_OpenDialogMultipleWin(&params);
+
     if (result == NFD_OKAY) {
-        puts("Success!");
+        puts("Success!\n");
         printf("path size = %zu\n", params.outPathSize);
-        puts(*params.outPath);
-        // remember to free the memory (since NFD_OKAY is returned)
-        NFD_FreePath(*params.outPath);
+        const char* curPath = outPath;
+        int i = 0;
+        while (*curPath)
+        {
+            printf("path %d: %s\n", ++i, curPath);
+            curPath += strlen(curPath) + 1;
+        }
+        NFD_FreePathN(outPath);
     } else if (result == NFD_CANCEL) {
         puts("User pressed cancel.");
     } else {

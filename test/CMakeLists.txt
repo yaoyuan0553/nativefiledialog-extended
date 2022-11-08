@@ -3,6 +3,7 @@ set(TEST_LIST
   test_opendialog_win.c
   test_opendialog.c
   test_opendialog_cpp.cpp
+  test_opendialogmultiple_win.c
   test_opendialogmultiple.c
   test_opendialogmultiple_cpp.cpp
   test_opendialogmultiple_enum.c
