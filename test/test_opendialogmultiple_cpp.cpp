@@ -17,16 +17,6 @@ int main() {
     // prepare filters for the dialog
     nfdfilteritem_t filterItem[2] = {{"Source code", "c,cpp,cc"}, {"Headers", "h,hpp"}};
 
-
-//    const char* blah = "\xe4\xbd\xa0\xe5\xa5\xbd\xe4\xb8\x96\xe7\x95\x8c";
-    const char* blah = "你";
-    printf("%s\n", blah);
-    printf("len = %zu\n", strlen(blah));
-    wchar_t* test = (wchar_t*)alloca(64 * sizeof(wchar_t));
-    mbstowcs(test, blah, 64);
-    printf("Hex value of first wide character %#.4x\n\n", test);
-    printf("converted len = %zu\n", wcslen(test));
-
     // show the dialog
     nfdresult_t result = NFD::OpenDialogMultiple(outPaths, filterItem, 2);
     if (result == NFD_OKAY) {

@@ -84,22 +84,35 @@ nfdresult_t NFD_OpenDialogN(nfdnchar_t** outPath,
                             nfdfiltersize_t filterCount,
                             const nfdnchar_t* defaultPath);
 
+// TODO: add synchronization
 typedef struct {
     char** outPath;
     size_t outPathSize;
-    void* parentWindow;
+} NfdDialogResponse;
+
+
+typedef struct {
+    NfdDialogResponse response;
+    unsigned long parentWindow;
     const char* winFilter;
     unsigned long filterIndex;
+    const char* defaultName;
     const char* defaultPath;
     const char* title;
     const char* defExt;
-} NfdOpenDialogParams;
+} NfdDialogParams;
 
-nfdresult_t NFD_OpenDialogWin(NfdOpenDialogParams* params);
+nfdresult_t NFD_OpenDialogWin(NfdDialogParams* params);
 
-nfdresult_t NFD_OpenDialogMultipleWin(NfdOpenDialogParams* params);
+nfdresult_t NFD_OpenDialogMultipleWin(NfdDialogParams* params);
 
-nfdresult_t NFD_SaveDialogWin(NfdOpenDialogParams* params);
+nfdresult_t NFD_SaveDialogWin(NfdDialogParams* params);
+
+nfdresult_t NFD_SaveDialogWinAsync(NfdDialogParams* params);
+
+int NFD_HasAsyncOpCompleted(void);
+
+nfdresult_t NFD_GetAsyncOpResult(NfdDialogResponse* result);
 
 /* multiple file open dialog */
 /* It is the caller's responsibility to free `outPaths` via NFD_PathSet_Free() if this function

@@ -16,9 +16,9 @@ int main(void) {
 
     char* outPath;
 
-    NfdOpenDialogParams params = {0};
+    NfdDialogParams params = {0};
 //    params.winFilter = "All\0*.*\0Text\0*.TXT\0Text no asterisk\0*.txt\0\0";
-    params.outPath = &outPath;
+    params.response.outPath = &outPath;
     params.winFilter = "All\0*.*\0Text\0*.TXT\0C/C++ files\0*.c;*.cpp;*.cc\0Image Files\0*.jpg;*.png;*.jpeg\0\0";
     params.filterIndex = 1;
     params.title = "this is a custom title";
@@ -27,10 +27,10 @@ int main(void) {
     nfdresult_t result = NFD_OpenDialogWin(&params);
     if (result == NFD_OKAY) {
         puts("Success!");
-        printf("path size = %zu\n", params.outPathSize);
-        puts(*params.outPath);
+        printf("path size = %zu\n", params.response.outPathSize);
+        puts(*params.response.outPath);
         // remember to free the memory (since NFD_OKAY is returned)
-        NFD_FreePath(*params.outPath);
+        NFD_FreePath(*params.response.outPath);
     } else if (result == NFD_CANCEL) {
         puts("User pressed cancel.");
     } else {

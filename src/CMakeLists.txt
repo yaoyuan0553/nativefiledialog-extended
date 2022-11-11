@@ -78,6 +78,10 @@ if(nfd_PLATFORM STREQUAL PLATFORM_LINUX)
       PUBLIC NFD_PORTAL)
   endif()
 
+  set(THREADS_PREFER_PTHREAD_FLAG ON)
+  find_package(Threads REQUIRED)
+  target_link_libraries(${TARGET_NAME} PRIVATE Threads::Threads)
+
   option(NFD_APPEND_EXTENSION "Automatically append file extension to an extensionless selection in SaveDialog()" OFF)
   if(NFD_APPEND_EXTENSION)
     target_compile_definitions(${TARGET_NAME} PRIVATE NFD_APPEND_EXTENSION)

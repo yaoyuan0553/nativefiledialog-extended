@@ -9,8 +9,10 @@ set(TEST_LIST
   test_opendialogmultiple_enum.c
   test_pickfolder.c
   test_pickfolder_cpp.cpp
-  test_savedialog.c)
-  
+  test_savedialog.c
+  test_savedialog_win.c
+  test_async.c)
+
 foreach (TEST ${TEST_LIST})
   string(REPLACE "." "_" CLEAN_TEST_NAME ${TEST})
   add_executable(${CLEAN_TEST_NAME}
