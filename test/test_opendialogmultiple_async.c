@@ -1,10 +1,11 @@
 //
-// Created by yuan on 22-11-9.
+// Created by yuan on 22-11-8.
 //
 #include <nfd.h>
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 /* this test should compile on all supported platforms */
@@ -15,30 +16,33 @@ int main(void) {
     // or before/after every time you want to show a file dialog.
     NFD_Init();
 
-    // prepare filters for the dialog
     NfdDialogParams params = {0};
 //    params.winFilter = "All\0*.*\0Text\0*.TXT\0Text no asterisk\0*.txt\0\0";
-    params.outPath = NULL;
     params.winFilter = "All\0*.*\0Text\0*.TXT\0C/C++ files\0*.c;*.cpp;*.cc\0Image Files\0*.jpg;*.png;*.jpeg\0\0";
     params.filterIndex = 1;
-    params.title = "this is a custom save title";
-//    params.defaultPath = "/home/yuan/byte_wine/wine";
-    params.defaultName = "Untitled.cc";
+//    params.title = "this is a custom title";
 
     void* asyncOpHandle;
     params.outAsyncOpHandle = &asyncOpHandle;
-
     // show the dialog
-    nfdresult_t result = NFD_SaveDialogWin(&params);
+    nfdresult_t result = NFD_OpenDialogMultipleWin(&params);
+
     if (result == NFD_OKAY) {
-        puts("Success!");
+        puts("Success!\n");
         while (!NFD_HasAsyncOpCompleted(asyncOpHandle)) {
             usleep(1000);
         }
         char* outPath;
         NfdDialogResponse response = {.outPath = &outPath};
         if ((result = NFD_GetAsyncOpResult(asyncOpHandle, &response)) == NFD_OKAY) {
-            puts(outPath);
+            printf("path size = %zu\n", response.outPathSize);
+            const char* curPath = outPath;
+            int i = 0;
+            while (*curPath)
+            {
+                printf("path %d: %s\n", ++i, curPath);
+                curPath += strlen(curPath) + 1;
+            }
             // remember to free the memory (since NFD_OKAY is returned)
             NFD_FreePath(outPath);
         }
@@ -48,8 +52,9 @@ int main(void) {
             printf("Error: %s\n", NFD_GetError());
         NFD_FreeHandle(asyncOpHandle);
     }
-    else
+    else {
         printf("Error: %s\n", NFD_GetError());
+    }
 
     // Quit NFD
     NFD_Quit();

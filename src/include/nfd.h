@@ -84,15 +84,14 @@ nfdresult_t NFD_OpenDialogN(nfdnchar_t** outPath,
                             nfdfiltersize_t filterCount,
                             const nfdnchar_t* defaultPath);
 
-// TODO: add synchronization
 typedef struct {
     char** outPath;
     size_t outPathSize;
 } NfdDialogResponse;
 
-
 typedef struct {
-    NfdDialogResponse response;
+    char** outPath;
+    size_t outPathSize;
     unsigned long parentWindow;
     const char* winFilter;
     unsigned long filterIndex;
@@ -100,6 +99,7 @@ typedef struct {
     const char* defaultPath;
     const char* title;
     const char* defExt;
+    void** outAsyncOpHandle;
 } NfdDialogParams;
 
 nfdresult_t NFD_OpenDialogWin(NfdDialogParams* params);
@@ -108,11 +108,26 @@ nfdresult_t NFD_OpenDialogMultipleWin(NfdDialogParams* params);
 
 nfdresult_t NFD_SaveDialogWin(NfdDialogParams* params);
 
-nfdresult_t NFD_SaveDialogWinAsync(NfdDialogParams* params);
+/**
+ * @warning The behavior is undefined if the requirements of \p opHandle is not met
+ * @param opHandle handle returned by an AsyncOp
+ * @return 0 for incomplete; non-zero for complete
+ */
+int NFD_HasAsyncOpCompleted(void* opHandle);
 
-int NFD_HasAsyncOpCompleted(void);
+/**
+ * @warning The behavior is undefined if the requirements of \p opHandle is not met
+ * @param opHandle handle returned by an AsyncOp
+ * @param result
+ * @return
+ */
+nfdresult_t NFD_GetAsyncOpResult(void* opHandle, NfdDialogResponse* result);
 
-nfdresult_t NFD_GetAsyncOpResult(NfdDialogResponse* result);
+/**
+ * @warning The behavior is undefined if the requirements of \p opHandle is not met
+ * @param opHandle handle returned by an AsyncOp
+ */
+void NFD_FreeHandle(void* opHandle);
 
 /* multiple file open dialog */
 /* It is the caller's responsibility to free `outPaths` via NFD_PathSet_Free() if this function

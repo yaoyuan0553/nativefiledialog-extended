@@ -11,7 +11,9 @@ set(TEST_LIST
   test_pickfolder_cpp.cpp
   test_savedialog.c
   test_savedialog_win.c
-  test_async.c)
+  test_async.c
+  test_opendialog_async.c
+  test_opendialogmultiple_async.c)
 
 foreach (TEST ${TEST_LIST})
   string(REPLACE "." "_" CLEAN_TEST_NAME ${TEST})

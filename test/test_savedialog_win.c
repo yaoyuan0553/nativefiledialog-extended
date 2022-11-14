@@ -19,7 +19,7 @@ int main(void) {
     // prepare filters for the dialog
     NfdDialogParams params = {0};
 //    params.winFilter = "All\0*.*\0Text\0*.TXT\0Text no asterisk\0*.txt\0\0";
-    params.response.outPath = &savePath;
+    params.outPath = &savePath;
     params.winFilter = "All\0*.*\0Text\0*.TXT\0C/C++ files\0*.c;*.cpp;*.cc\0Image Files\0*.jpg;*.png;*.jpeg\0\0";
     params.filterIndex = 1;
     params.title = "this is a custom save title";
