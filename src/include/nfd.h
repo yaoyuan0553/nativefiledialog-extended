@@ -129,6 +129,19 @@ nfdresult_t NFD_GetAsyncOpResult(void* opHandle, NfdDialogResponse* result);
  */
 void NFD_FreeHandle(void* opHandle);
 
+typedef enum {
+    NFD_FM_SELECT_FILE,
+    NFD_FM_OPEN_FOLDER
+} NfdFileManagerMode;
+
+typedef struct NfdFileManagerParams {
+    const char* filePath;
+    NfdFileManagerMode mode;
+    int convertToRealPath;
+} NfdFileManagerParams;
+
+nfdresult_t NFD_OpenFileManager(NfdFileManagerParams* params);
+
 /* multiple file open dialog */
 /* It is the caller's responsibility to free `outPaths` via NFD_PathSet_Free() if this function
  * returns NFD_OKAY */

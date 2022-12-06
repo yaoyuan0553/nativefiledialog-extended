@@ -70,6 +70,19 @@ struct Free_Guard {
 };
 
 template <typename T>
+struct MallocFreeGuard {
+    T* data;
+    MallocFreeGuard(T* freeable) noexcept : data(freeable) {}
+    ~MallocFreeGuard() { free(data); }
+    T* release() noexcept
+    {
+        T* tmp = data;
+        data = nullptr;
+        return tmp;
+    }
+};
+
+template <typename T>
 struct FreeCheck_Guard {
     T* data;
     FreeCheck_Guard(T* freeable = nullptr) noexcept : data(freeable) {}
@@ -1821,6 +1834,73 @@ nfdresult_t NFD_DBus_ShowOpenFileDialog(NfdDialogParams* params)
     return NFD_OKAY;
 }
 
+char* ConvertToUriPath(const char* path)
+{
+    static constexpr char URI_FILE_PREFIX[] = "file://";
+
+    char* uriPath = NFDi_Malloc<char>(sizeof(URI_FILE_PREFIX) / sizeof(char) + strlen(path));
+    strcpy(uriPath, URI_FILE_PREFIX);
+    strcpy(uriPath + sizeof(URI_FILE_PREFIX) - 1, path);
+
+    return uriPath;
+}
+
+void AppendFileManagerParams(DBusMessage* query, const char* filePath)
+{
+    DBusMessageIter iter;
+    dbus_message_iter_init_append(query, &iter);
+
+    DBusMessageIter sub_iter;
+    dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, DBUS_TYPE_STRING_AS_STRING, &sub_iter);
+
+    char* uriPath = ConvertToUriPath(filePath);
+
+    dbus_message_iter_append_basic(&sub_iter, DBUS_TYPE_STRING, &uriPath);
+
+    dbus_message_iter_close_container(&iter, &sub_iter);
+
+    dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &STR_EMPTY);
+
+    NFDi_Free(uriPath);
+}
+
+nfdresult_t NFD_DBus_FileManager(const char* path, NfdFileManagerMode mode)
+{
+    static const char* method;
+    if (mode == NFD_FM_OPEN_FOLDER)
+        method = "ShowFolders";
+    else if (mode == NFD_FM_SELECT_FILE)
+        method = "ShowItems";
+    else {
+        NFDi_SetError("invalid NfdFileManagerMode");
+        return NFD_ERROR;
+    }
+
+    DBusError err;  // need a separate error object because we don't want to mess with the old one
+    // if it's still set
+    dbus_error_init(&err);
+
+    DBusMessage* query = dbus_message_new_method_call(
+        "org.freedesktop.FileManager1",
+        "/org/freedesktop/FileManager1",
+        "org.freedesktop.FileManager1",
+        method);
+
+    DBusMessage_Guard query_guard(query);
+    AppendFileManagerParams(query, path);
+
+    DBusMessage* reply =
+        dbus_connection_send_with_reply_and_block(dbus_conn, query, DBUS_TIMEOUT_INFINITE, &err);
+    if (!reply) {
+        dbus_error_free(&dbus_err);
+        dbus_move_error(&err, &dbus_err);
+        NFDi_SetError(dbus_err.message);
+        return NFD_ERROR;
+    }
+    dbus_message_unref(reply);
+    return NFD_OKAY;
+}
+
 template <bool Multiple, bool Directory>
 nfdresult_t NFD_DBus_OpenFileWin(DBusMessage*& outMsg, NfdDialogParams* params)
 {
@@ -2014,6 +2094,28 @@ nfdresult_t NFD_DBus_SaveFileWin(DBusMessage*& outMsg, NfdDialogParams* params)
     return NFD_ERROR;
 }
 
+const char* formatRealpathError()
+{
+    switch (errno)
+    {
+        case EACCES:
+            return "[realpath] Search permission was denied for a component of the path prefix of file_name.";
+        case EINVAL:
+            return "[realpath] The file_name argument is a null pointer.";
+        case EIO:
+            return "[realpath] An error occurred while reading from the file system.";
+        case ELOOP:
+            return "[realpath] A loop exists in symbolic links encountered during resolution of the file_name argument.";
+        case ENAMETOOLONG:
+            return "[realpath] The length of a component of a pathname is longer than {NAME_MAX}.";
+        case ENOENT:
+            return "[realpath] A component of file_name does not name an existing file or file_name points to an empty string.";
+        case ENOTDIR:
+            return "[realpath] A component of the path prefix names an existing file that is neither a directory nor a symbolic link to a directory, or the file_name argument contains at least one non- <slash> character and ends with one or more trailing <slash> characters and the last pathname component names an existing file that is neither a directory nor a symbolic link to a directory.";
+        default:
+            return "[realpath] unknown error.";
+    }
+}
 
 }  // namespace
 
@@ -2122,6 +2224,24 @@ nfdresult_t NFD_OpenDialogWin(NfdDialogParams* params)
     }
 }
 
+nfdresult_t NFD_OpenFileManager(NfdFileManagerParams* params)
+{
+    if (params->convertToRealPath) {
+        char* path = realpath(params->filePath, nullptr);
+        if (!path) {
+            NFDi_SetError(formatRealpathError());
+            return NFD_ERROR;
+        }
+        auto ret = NFD_DBus_FileManager(path, params->mode);
+
+        free(path);
+
+        return ret;
+    }
+    else
+        return NFD_DBus_FileManager(params->filePath, params->mode);
+
+}
 
 nfdresult_t NFD_OpenDialogMultipleWin(NfdDialogParams* params)
 {
