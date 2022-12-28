@@ -19,9 +19,10 @@
 #include <libgen.h>
 #include <pthread.h>
 
+#include <cctype>
 #include <concepts>
-#include <utility>
 #include <new>
+#include <utility>
 
 #include "nfd.h"
 
@@ -118,6 +119,20 @@ template <typename T>
 T* copy(const T* begin, const T* end, T* out) {
     for (; begin != end; ++begin) {
         *out++ = *begin;
+    }
+    return out;
+}
+
+char* genCaseSensitivePattern(const char* begin, const char* end, char* out) {
+    for (; begin != end; ++begin) {
+        if (isalpha(*begin)) {
+            *out++ = '[';
+            *out++ = static_cast<char>(tolower(*begin));
+            *out++ = static_cast<char>(toupper(*begin));
+            *out++ = ']';
+        }
+        else
+            *out++ = *begin;
     }
     return out;
 }
@@ -339,13 +354,19 @@ void AppendSingleFilter(DBusMessageIter& base_iter, const char* name, const char
                     &filter_sublist_struct_iter, DBUS_TYPE_UINT32, &zero);
             }
             // TODO: ignore case
+            int letter_count = 0;
             do {
+                if (isalpha(*pattern_end))
+                    ++letter_count;
                 ++pattern_end;
             } while (*pattern_end != ';' && *pattern_end != '\0');
-            char* buf = static_cast<char*>(alloca((pattern_end - pattern_begin) + 1));
+            char* buf =
+                static_cast<char*>(alloca((pattern_end - pattern_begin) + 3 * letter_count + 1));
             char* buf_end = buf;
-            buf_end = copy(pattern_begin, pattern_end, buf_end);
+//            buf_end = copy(pattern_begin, pattern_end, buf_end);
+            buf_end = genCaseSensitivePattern(pattern_begin, pattern_end, buf_end);
             *buf_end = '\0';
+            fprintf(stderr, "appending filter %s\n", buf);
             dbus_message_iter_append_basic(&filter_sublist_struct_iter, DBUS_TYPE_STRING, &buf);
             dbus_message_iter_close_container(&filter_sublist_iter, &filter_sublist_struct_iter);
             if (*pattern_end == '\0') {
