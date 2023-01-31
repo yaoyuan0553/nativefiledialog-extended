@@ -108,6 +108,8 @@ nfdresult_t NFD_OpenDialogMultipleWin(NfdDialogParams* params);
 
 nfdresult_t NFD_SaveDialogWin(NfdDialogParams* params);
 
+nfdresult_t NFD_PickFolderWin(NfdDialogParams* params);
+
 /**
  * @warning The behavior is undefined if the requirements of \p opHandle is not met
  * @param opHandle handle returned by an AsyncOp

@@ -6,11 +6,11 @@ docker run --rm \
     /bin/bash
 
 # static library
-cmake -DCMAKE_BUILD_TYPE=Release -DNFD_PORTAL=ON -DNFD_TARGET_ARCHITECTURE=x86 -S . -B cmake-debian-build-release
+cmake -DCMAKE_BUILD_TYPE=Release -DNFD_PORTAL=ON -DNFD_TARGET_ARCHITECTURE=x86 -S . -B cmake-debian-build-release-x86
 
-cmake --build cmake-debian-build-release --target all -j 36
+cmake --build cmake-debian-build-release-x86 --target all -j $(nproc)
 
 # shared library
 cmake -DCMAKE_BUILD_TYPE=Release -DNFD_PORTAL=ON -DNFD_TARGET_ARCHITECTURE=x86 -DBUILD_SHARED_LIBS=ON -S . -B cmake-debian-build-release-shared
 
-cmake --build cmake-debian-build-release-shared --target all -j 36
+cmake --build cmake-debian-build-release-shared --target all -j $(nproc)

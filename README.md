@@ -59,14 +59,14 @@ int main(void)
 
     nfdchar_t *outPath;
     nfdfilteritem_t filterItem[2] = { { "Source code", "c,cpp,cc" }, { "Headers", "h,hpp" } };
-    nfdresult_t result = NFD_OpenDialog(&outPath, filterItem, 2, NULL);
-    if (result == NFD_OKAY)
+    nfdresult_t resultCode = NFD_OpenDialog(&outPath, filterItem, 2, NULL);
+    if (resultCode == NFD_OKAY)
     {
         puts("Success!");
         puts(outPath);
         NFD_FreePath(outPath);
     }
-    else if (result == NFD_CANCEL)
+    else if (resultCode == NFD_CANCEL)
     {
         puts("User pressed cancel.");
     }

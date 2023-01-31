@@ -14,7 +14,8 @@ set(TEST_LIST
         test_async.c
         test_opendialog_async.c
         test_opendialogmultiple_async.c
-        test_filemanagershowitem.c)
+        test_filemanagershowitem.c
+        test_pickfolder_async.c)
 
 foreach (TEST ${TEST_LIST})
   string(REPLACE "." "_" CLEAN_TEST_NAME ${TEST})

@@ -2245,6 +2245,44 @@ nfdresult_t NFD_OpenDialogWin(NfdDialogParams* params)
     }
 }
 
+nfdresult_t NFD_PickFolderWin(NfdDialogParams* params)
+{
+    (void)params->defaultPath;  // Default path not supported for portal backend
+    if (params->outAsyncOpHandle)
+    {
+        nfdresult_t res = NFD_DBus_ShowOpenFileDialog<false, true>(params);
+        if (res != NFD_OKAY)
+            return res;
+        NfdDialogMonitor* monitor = NfdDialogMonitor::create<false>();
+        if (!monitor)
+            return NFD_ERROR;
+        *params->outAsyncOpHandle = monitor;
+
+        return NFD_OKAY;
+    }
+    else
+    {
+        DBusMessage* msg;
+        {
+            const nfdresult_t res = NFD_DBus_OpenFileWin<false, false>(msg, params);
+            if (res != NFD_OKAY) {
+                return res;
+            }
+        }
+        DBusMessage_Guard msg_guard(msg);
+
+        const char* uri;
+        {
+            const nfdresult_t res = ReadResponseUrisSingle(msg, uri);
+            if (res != NFD_OKAY) {
+                return res;
+            }
+        }
+
+        return AllocAndCopyFilePath(uri, *params->outPath, &params->outPathSize);
+    }
+}
+
 nfdresult_t NFD_OpenFileManager(NfdFileManagerParams* params)
 {
     if (params->convertToRealPath) {
